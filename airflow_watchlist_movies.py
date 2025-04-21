@@ -8,7 +8,7 @@ from airflow.providers.google.cloud.hooks.gcs import GCSHook
 from io import StringIO
 
 default_args = {
-    'owner': 'data_engineering',
+    'owner': 'Vitor Sarilio',
     'depends_on_past': False,
     'start_date': datetime(2025, 4, 18),
     'retries': 1,
@@ -52,13 +52,13 @@ def extract_tmdb_watchlist_movies(**context):
         df = pd.DataFrame(all_movies)[["id", "original_title", "title"]]
         df['job_date'] = current_date
 
-        # 1. Processamento do arquivo de IDs histórico
+        # 1. Processamento do arquivo de IDs histórico (compartilhado)
         gcs_hook = GCSHook(gcp_conn_id='google_cloud_default')
         bucket_name = 'cinema-data-lake'
         ids_history_path = "tmdb/bronze_local/movies_ids/movies_ids_history.csv"
         
         # Verifica se o arquivo histórico existe
-        existing_ids = pd.DataFrame(columns=['id', 'insertion_date'])
+        existing_ids = pd.DataFrame(columns=['id', 'insertion_date', 'source_types'])
         
         try:
             # Tenta baixar o arquivo existente
@@ -71,22 +71,40 @@ def extract_tmdb_watchlist_movies(**context):
                 sep=';',
                 dtype={'id': int}
             )
-        except:
+        except Exception as e:
+            print(f"Arquivo histórico não encontrado, criando novo: {str(e)}")
             # Se o arquivo não existir, continua com DataFrame vazio
-            pass
 
-        # 2. Filtra apenas os novos IDs
+        # 2. Processa os novos IDs
         new_ids = df[['id']].drop_duplicates()
-        new_ids['insertion_date'] = current_date
         
-        # Remove IDs que já existem no histórico
-        if not existing_ids.empty:
-            new_ids = new_ids[~new_ids['id'].isin(existing_ids['id'])]
+        # Para IDs que já existem, atualiza a coluna source_types
+        updated_ids = existing_ids.copy()
         
-        # 3. Concatena os novos IDs com os existentes
-        updated_ids = pd.concat([existing_ids, new_ids], ignore_index=True)
+        # Adiciona/atualiza os tipos de fonte
+        for movie_id in new_ids['id']:
+            if movie_id in existing_ids['id'].values:
+                # Atualiza registro existente
+                mask = updated_ids['id'] == movie_id
+                sources = set(updated_ids.loc[mask, 'source_types'].iloc[0].split(','))
+                sources.add('watchlist')
+                updated_ids.loc[mask, 'source_types'] = ','.join(sorted(sources))
+                updated_ids.loc[mask, 'insertion_date'] = min(
+                    existing_ids.loc[mask, 'insertion_date'].iloc[0],
+                    current_date
+                )
+            else:
+                # Adiciona novo registro
+                updated_ids = pd.concat([
+                    updated_ids,
+                    pd.DataFrame([{
+                        'id': movie_id,
+                        'insertion_date': current_date,
+                        'source_types': 'watchlist'
+                    }])
+                ], ignore_index=True)
 
-        # Geração dos CSVs
+        # 3. Geração dos CSVs
         # Arquivo completo diário
         csv_content = df.to_csv(
             sep=';',
@@ -113,13 +131,16 @@ def extract_tmdb_watchlist_movies(**context):
             mime_type='text/csv; charset=utf-8'
         )
 
-        # Arquivo histórico de IDs (sempre o mesmo nome)
+        # Arquivo histórico de IDs compartilhado
         gcs_hook.upload(
             bucket_name=bucket_name,
             object_name=ids_history_path,
             data=ids_csv_content,
             mime_type='text/csv; charset=utf-8'
         )
+
+        print(f"Total de IDs no histórico: {len(updated_ids)}")
+        print(f"IDs atualizados: {len(new_ids)}")
 
     except Exception as e:
         print(f"Erro na extração: {str(e)}")
