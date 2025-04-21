@@ -48,12 +48,9 @@ def extract_tmdb_rated_tv_shows(**context):
 
         # Transformação
         df = pd.DataFrame(all_tv_shows)[[
-            "id", "original_language", "original_name", "overview", 
-            "poster_path", "first_air_date", "name", 
-            "vote_average", "vote_count", "rating"
+            "id", "original_name", "name", "rating"
         ]]
-        df['data_hora_execucao'] = datetime.now(timezone.utc)
-        df['first_air_date'] = pd.to_datetime(df['first_air_date'], errors='coerce')
+        df['job_date'] = datetime.now(timezone.utc)
 
         # Geração do CSV
         csv_content = df.to_csv(
@@ -80,7 +77,7 @@ def extract_tmdb_rated_tv_shows(**context):
 with DAG(
     'tmdb_rated_tv_shows',
     default_args=default_args,
-    schedule_interval='30 2 * * *',
+    schedule_interval='20 3 * * *',
     catchup=False,
     tags=['tmdb', 'bronze']
 ) as dag:

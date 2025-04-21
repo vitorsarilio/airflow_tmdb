@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 import requests
 import pandas as pd
 from airflow.providers.google.cloud.hooks.gcs import GCSHook
+from io import StringIO
 
 default_args = {
     'owner': 'data_engineering',
@@ -19,6 +20,7 @@ def extract_tmdb_watchlist_movies(**context):
     api_token = Variable.get("TMDB_API_TOKEN")
     account_id = "21762355"
     processing_date = datetime.now(timezone.utc).strftime('%Y%m%d')
+    current_date = datetime.now(timezone.utc)
     base_url = f"https://api.themoviedb.org/3/account/{account_id}/watchlist/movies"
     
     headers = {
@@ -47,29 +49,75 @@ def extract_tmdb_watchlist_movies(**context):
             all_movies.extend(data.get("results", []))
 
         # Transformação
-        df = pd.DataFrame(all_movies)[[
-            "id", "original_language", "original_title", "overview", 
-            "poster_path", "release_date", "title", 
-            "vote_average", "vote_count"
-        ]]
-        df['data_hora_execucao'] = datetime.now(timezone.utc)
-        df['release_date'] = pd.to_datetime(df['release_date'], errors='coerce')
+        df = pd.DataFrame(all_movies)[["id", "original_title", "title"]]
+        df['job_date'] = current_date
 
-        # Geração do CSV
+        # 1. Processamento do arquivo de IDs histórico
+        gcs_hook = GCSHook(gcp_conn_id='google_cloud_default')
+        bucket_name = 'cinema-data-lake'
+        ids_history_path = "tmdb/bronze_local/movies_ids/movies_ids_history.csv"
+        
+        # Verifica se o arquivo histórico existe
+        existing_ids = pd.DataFrame(columns=['id', 'insertion_date'])
+        
+        try:
+            # Tenta baixar o arquivo existente
+            file_content = gcs_hook.download(
+                bucket_name=bucket_name,
+                object_name=ids_history_path
+            )
+            existing_ids = pd.read_csv(
+                StringIO(file_content),
+                sep=';',
+                dtype={'id': int}
+            )
+        except:
+            # Se o arquivo não existir, continua com DataFrame vazio
+            pass
+
+        # 2. Filtra apenas os novos IDs
+        new_ids = df[['id']].drop_duplicates()
+        new_ids['insertion_date'] = current_date
+        
+        # Remove IDs que já existem no histórico
+        if not existing_ids.empty:
+            new_ids = new_ids[~new_ids['id'].isin(existing_ids['id'])]
+        
+        # 3. Concatena os novos IDs com os existentes
+        updated_ids = pd.concat([existing_ids, new_ids], ignore_index=True)
+
+        # Geração dos CSVs
+        # Arquivo completo diário
         csv_content = df.to_csv(
             sep=';',
             index=False,
-            encoding='utf-8-sig',  # Suporte a acentos e caracteres especiais
+            encoding='utf-8-sig',
             date_format='%Y-%m-%d'
         )
 
-        # Upload para GCS (estrutura simplificada)
-        gcs_hook = GCSHook(gcp_conn_id='google_cloud_default')
-        gcs_path = f"tmdb/bronze_local/watchlist_movies/watchlist_movies_{processing_date}.csv"
+        # Arquivo histórico de IDs
+        ids_csv_content = updated_ids.to_csv(
+            sep=';',
+            index=False,
+            encoding='utf-8-sig',
+            date_format='%Y-%m-%d'
+        )
+
+        # Upload para GCS
+        # Arquivo diário completo
+        daily_gcs_path = f"tmdb/bronze_local/watchlist_movies/watchlist_movies_{processing_date}.csv"
         gcs_hook.upload(
-            bucket_name='cinema-data-lake',
-            object_name=gcs_path,
+            bucket_name=bucket_name,
+            object_name=daily_gcs_path,
             data=csv_content,
+            mime_type='text/csv; charset=utf-8'
+        )
+
+        # Arquivo histórico de IDs (sempre o mesmo nome)
+        gcs_hook.upload(
+            bucket_name=bucket_name,
+            object_name=ids_history_path,
+            data=ids_csv_content,
             mime_type='text/csv; charset=utf-8'
         )
 
@@ -80,7 +128,7 @@ def extract_tmdb_watchlist_movies(**context):
 with DAG(
     'tmdb_watchlist_movies',
     default_args=default_args,
-    schedule_interval='0 4 * * *',
+    schedule_interval='25 3 * * *',
     catchup=False,
     tags=['tmdb', 'bronze']
 ) as dag:

@@ -47,12 +47,9 @@ def extract_tmdb_now_playing_movies(**context):
 
         # Transformação
         df = pd.DataFrame(all_movies)[[
-            "id", "original_language", "original_title", "overview", 
-            "poster_path", "release_date", "title", 
-            "vote_average", "vote_count"
+            "id", "original_title", "title"
         ]]
-        df['data_hora_execucao'] = datetime.now(timezone.utc)
-        df['release_date'] = pd.to_datetime(df['release_date'], errors='coerce')
+        df['job_date'] = datetime.now(timezone.utc)
 
         # Geração do CSV
         csv_content = df.to_csv(
@@ -79,7 +76,7 @@ def extract_tmdb_now_playing_movies(**context):
 with DAG(
     'tmdb_now_playing_movies',
     default_args=default_args,
-    schedule_interval='0 8 * * *',
+    schedule_interval='10 3 * * *',
     catchup=False,
     tags=['tmdb', 'bronze']
 ) as dag:
