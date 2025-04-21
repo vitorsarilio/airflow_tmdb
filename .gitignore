@@ -1,0 +1,4 @@
+# Ignorar pastas __pycache__ do Python
+__pycache__/
+*.py[cod]
+*$py.class

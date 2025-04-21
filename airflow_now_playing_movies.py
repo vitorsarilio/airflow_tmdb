@@ -1,0 +1,91 @@
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from airflow.models import Variable
+from datetime import datetime, timedelta, timezone
+import requests
+import pandas as pd
+from airflow.providers.google.cloud.hooks.gcs import GCSHook
+
+default_args = {
+    'owner': 'data_engineering',
+    'depends_on_past': False,
+    'start_date': datetime(2025, 4, 18),
+    'retries': 1,
+    'retry_delay': timedelta(minutes=1)
+}
+
+def extract_tmdb_now_playing_movies(**context):
+    # Configurações
+    api_token = Variable.get("TMDB_API_TOKEN")
+    processing_date = datetime.now(timezone.utc).strftime('%Y%m%d')
+    base_url = f"https://api.themoviedb.org/3/movie/now_playing"
+    
+    headers = {
+        "accept": "application/json",
+        "Authorization": f"Bearer {api_token}"
+    }
+
+    params = {
+        "language": "pt-BR",
+        "page": 1,
+        "region": "BR"
+    }
+
+    try:
+        # Extração de dados
+        all_movies = []
+        response = requests.get(base_url, headers=headers, params=params)
+        response.raise_for_status()
+        data = response.json()
+        total_pages = data.get("total_pages", 1)
+
+        for page in range(1, total_pages + 1):
+            params["page"] = page
+            response = requests.get(base_url, headers=headers, params=params)
+            data = response.json()
+            all_movies.extend(data.get("results", []))
+
+        # Transformação
+        df = pd.DataFrame(all_movies)[[
+            "id", "original_language", "original_title", "overview", 
+            "poster_path", "release_date", "title", 
+            "vote_average", "vote_count"
+        ]]
+        df['data_hora_execucao'] = datetime.now(timezone.utc)
+        df['release_date'] = pd.to_datetime(df['release_date'], errors='coerce')
+
+        # Geração do CSV
+        csv_content = df.to_csv(
+            sep=';',
+            index=False,
+            encoding='utf-8-sig',  # Suporte a acentos e caracteres especiais
+            date_format='%Y-%m-%d'
+        )
+
+        # Upload para GCS (estrutura simplificada)
+        gcs_hook = GCSHook(gcp_conn_id='google_cloud_default')
+        gcs_path = f"tmdb/bronze/now_playing_movies/now_playing_movies_{processing_date}.csv"
+        gcs_hook.upload(
+            bucket_name='cinema-data-lake',
+            object_name=gcs_path,
+            data=csv_content,
+            mime_type='text/csv; charset=utf-8'
+        )
+
+    except Exception as e:
+        print(f"Erro na extração: {str(e)}")
+        raise
+
+with DAG(
+    'tmdb_now_playing_movies',
+    default_args=default_args,
+    schedule_interval='0 8 * * *',
+    catchup=False,
+    tags=['tmdb', 'bronze']
+) as dag:
+
+    extract_task = PythonOperator(
+        task_id='extract_tmdb_now_playing_movies',
+        python_callable=extract_tmdb_now_playing_movies,
+        provide_context=True
+    )
