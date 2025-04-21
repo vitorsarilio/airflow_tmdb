@@ -65,7 +65,7 @@ def extract_tmdb_favorites_movies(**context):
 
         # Upload para GCS (estrutura simplificada)
         gcs_hook = GCSHook(gcp_conn_id='google_cloud_default')
-        gcs_path = f"tmdb/bronze/favorites_movies/favorite_movies_{processing_date}.csv"
+        gcs_path = f"tmdb/bronze_local/favorites_movies/favorite_movies_{processing_date}.csv"
         gcs_hook.upload(
             bucket_name='cinema-data-lake',
             object_name=gcs_path,
