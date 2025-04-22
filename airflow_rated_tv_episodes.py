@@ -9,7 +9,7 @@ from airflow.providers.google.cloud.hooks.gcs import GCSHook
 default_args = {
     'owner': 'data_engineering',
     'depends_on_past': False,
-    'start_date': datetime(2025, 4, 18),
+    'start_date': datetime(2025, 4, 22),
     'retries': 1,
     'retry_delay': timedelta(minutes=1)
 }
@@ -81,7 +81,7 @@ def extract_tmdb_rated_tv_episodes(**context):
 with DAG(
     'tmdb_rated_tv_episodes',
     default_args=default_args,
-    schedule_interval='0 3 * * *',
+    schedule_interval='35 4 * * *',
     catchup=False,
     tags=['tmdb', 'bronze']
 ) as dag:

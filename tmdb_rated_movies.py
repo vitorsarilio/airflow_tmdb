@@ -11,7 +11,7 @@ import os
 default_args = {
     'owner': 'data_engineering',
     'depends_on_past': False,
-    'start_date': datetime(2025, 4, 18),
+    'start_date': datetime(2025, 4, 22),
     'retries': 1,
     'retry_delay': timedelta(minutes=1)
 }
@@ -196,7 +196,7 @@ def extract_tmdb_rated_movies(**context):
 with DAG(
     'tmdb_rated_movies',
     default_args=default_args,
-    schedule_interval='15 3 * * *',
+    schedule_interval='15 4 * * *',
     catchup=False,
     tags=['tmdb', 'bronze']
 ) as dag:

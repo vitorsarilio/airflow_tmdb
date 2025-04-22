@@ -11,7 +11,7 @@ import os
 default_args = {
     'owner': 'Vitor Sarilio',
     'depends_on_past': False,
-    'start_date': datetime(2025, 4, 18),
+    'start_date': datetime(2025, 4, 22),
     'retries': 1,
     'retry_delay': timedelta(minutes=1)
 }
@@ -196,7 +196,7 @@ def extract_tmdb_watchlist_movies(**context):
 with DAG(
     'tmdb_watchlist_movies',
     default_args=default_args,
-    schedule_interval='25 3 * * *',
+    schedule_interval='25 4 * * *',
     catchup=False,
     tags=['tmdb', 'bronze']
 ) as dag:
