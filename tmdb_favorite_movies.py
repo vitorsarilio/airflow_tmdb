@@ -1,10 +1,11 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.models import Variable
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.providers.google.cloud.hooks.gcs import GCSHook
 from datetime import datetime, timedelta, timezone
 import requests
 import pandas as pd
-from airflow.providers.google.cloud.hooks.gcs import GCSHook
 from io import StringIO
 import os
 
@@ -206,3 +207,13 @@ with DAG(
         python_callable=extract_tmdb_favorites_movies,
         provide_context=True
     )
+
+    trigger_silver_dag = TriggerDagRunOperator(
+        task_id='trigger_silver_processing',
+        trigger_dag_id="tmdb_silver_favorites_movies",
+        execution_date='{{ ds }}',
+        wait_for_completion=False,
+        reset_dag_run=True 
+    )
+
+    extract_task >> trigger_silver_dag
