@@ -7,19 +7,19 @@ default_args = {
     'depends_on_past': False,
     'start_date': datetime(2025, 4, 22),
     'retries': 1,
-    'retry_delay': timedelta(minutes=5)
+    'retry_delay': timedelta(minutes=1)
 }
 
 with DAG(
-    'tmdb_silver_favorites_movies',
+    'tmdb_favorites_movies_silver',
     default_args=default_args,
     schedule_interval=None,
     catchup=False,
     tags=['tmdb', 'silver']
 ) as dag:
 
-    create_silver_table = BigQueryInsertJobOperator(
-        task_id='create_silver_table',
+    create_favorites_movies_silver_table = BigQueryInsertJobOperator(
+        task_id='create_tmdb_favorites_movies_silver',
         configuration={
             "query": {
                 "query": """

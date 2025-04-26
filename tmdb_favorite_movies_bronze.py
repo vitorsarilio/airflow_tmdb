@@ -10,7 +10,7 @@ from io import StringIO
 import os
 
 default_args = {
-    'owner': 'data_engineering',
+    'owner': 'Vitor Sarilio',
     'depends_on_past': False,
     'start_date': datetime(2025, 4, 22),
     'retries': 1,
@@ -195,25 +195,25 @@ def extract_tmdb_favorites_movies(**context):
         raise
 
 with DAG(
-    'tmdb_favorites_movies',
+    'tmdb_favorites_movies_bronze',
     default_args=default_args,
     schedule_interval='0 4 * * *',
     catchup=False,
     tags=['tmdb', 'bronze']
 ) as dag:
 
-    extract_task = PythonOperator(
-        task_id='extract_tmdb_favorites_movies',
+    extract_favorite_movies_bronze_task = PythonOperator(
+        task_id='extract_tmdb_favorites_movies_bronze',
         python_callable=extract_tmdb_favorites_movies,
         provide_context=True
     )
 
-    trigger_silver_dag = TriggerDagRunOperator(
-        task_id='trigger_silver_processing',
-        trigger_dag_id="tmdb_silver_favorites_movies",
+    trigger_create_favorite_movies_silver = TriggerDagRunOperator(
+        task_id='trigger_create_favorite_movies_silver_processing',
+        trigger_dag_id="tmdb_favorites_movies_silver",
         execution_date='{{ ds }}',
         wait_for_completion=False,
         reset_dag_run=True 
     )
 
-    extract_task >> trigger_silver_dag
+    extract_favorite_movies_bronze_task >> trigger_create_favorite_movies_silver
