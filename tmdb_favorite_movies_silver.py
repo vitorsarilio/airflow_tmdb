@@ -1,5 +1,5 @@
 from airflow import DAG
-from airflow.providers.google.cloud.operators.bigquery import BigQueryExecuteQueryOperator
+from airflow.providers.google.cloud.operators.bigquery import BigQueryInsertJobOperator  # Correto
 from datetime import datetime, timedelta
 
 default_args = {
@@ -13,25 +13,29 @@ default_args = {
 with DAG(
     'tmdb_silver_favorites_movies',
     default_args=default_args,
-    schedule_interval=None,  # Será acionada manualmente pela outra DAG
+    schedule_interval=None,
     catchup=False,
     tags=['tmdb', 'silver']
 ) as dag:
 
-    create_silver_table = BigQueryExecuteQueryOperator(
+    create_silver_table = BigQueryInsertJobOperator(
         task_id='create_silver_table',
-        sql='''
-        CREATE OR REPLACE TABLE `engestudo.cinema_silver.tmdb_favorites_movies`
-        PARTITION BY DATE_TRUNC(last_date, MONTH)
-        AS
-        SELECT 
-          id,
-          title,
-          MIN(job_date) AS add_date,
-          MAX(job_date) AS last_date
-        FROM `engestudo.cinema_bronze.tmdb_favorites_movies`
-        GROUP BY id, title;
-        ''',
-        use_legacy_sql=False,
+        configuration={
+            "query": {
+                "query": """
+                CREATE OR REPLACE TABLE `engestudo.cinema_silver.tmdb_favorites_movies`
+                PARTITION BY DATE_TRUNC(last_date, MONTH)
+                AS
+                SELECT 
+                  id,
+                  title,
+                  MIN(job_date) AS add_date,
+                  MAX(job_date) AS last_date
+                FROM `engestudo.cinema_bronze.tmdb_favorites_movies`
+                GROUP BY id, title;
+                """,
+                "useLegacySql": False,
+            }
+        },
         gcp_conn_id='google_cloud_default'
     )
