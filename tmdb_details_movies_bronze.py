@@ -1,12 +1,12 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.models import Variable
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.providers.google.cloud.hooks.gcs import GCSHook
 from datetime import datetime, timedelta, timezone
 import requests
 import pandas as pd
-from airflow.providers.google.cloud.hooks.gcs import GCSHook
 from io import StringIO
-import os
 from time import sleep
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -183,15 +183,25 @@ def fetch_movie_details(**context):
         raise
 
 with DAG(
-    'tmdb_movies_details',
+    'tmdb_details_movies_bronze',
     default_args=default_args,
     schedule_interval='0 5 * * *',  # Executa às 5h
     catchup=False,
-    tags=['tmdb', 'silver']
+    tags=['tmdb', 'bronze']
 ) as dag:
 
-    fetch_details_task = PythonOperator(
-        task_id='fetch_movie_details',
+    fetch_movies_details_bronze_task = PythonOperator(
+        task_id='fetch_movie_details_bronze',
         python_callable=fetch_movie_details,
         provide_context=True
     )
+
+    trigger_create_movies_details_silver = TriggerDagRunOperator(
+        task_id='trigger_create_movies_details_silver_processing',
+        trigger_dag_id="tmdb_details_movies_silver",
+        execution_date='{{ ds }}',
+        wait_for_completion=False,
+        reset_dag_run=True 
+    )
+
+    fetch_movies_details_bronze_task >> trigger_create_movies_details_silver
