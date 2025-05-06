@@ -1,15 +1,16 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.models import Variable
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.providers.google.cloud.hooks.gcs import GCSHook
 from datetime import datetime, timedelta, timezone
 import requests
 import pandas as pd
-from airflow.providers.google.cloud.hooks.gcs import GCSHook
 from io import StringIO
 import os
 
 default_args = {
-    'owner': 'data_engineering',
+    'owner': 'Vitor Sarilio',
     'depends_on_past': False,
     'start_date': datetime(2025, 4, 22),
     'retries': 1,
@@ -200,8 +201,18 @@ with DAG(
     tags=['tmdb', 'bronze']
 ) as dag:
 
-    extract_task = PythonOperator(
+    extract_tmdb_now_playing_movies_task = PythonOperator(
         task_id='extract_tmdb_now_playing_movies',
         python_callable=extract_tmdb_now_playing_movies,
         provide_context=True
     )
+
+    trigger_create_now_playing_movies_silver = TriggerDagRunOperator(
+        task_id='trigger_create_now_playing_movies_silver_processing',
+        trigger_dag_id="tmdb_now_playing_movies_silver",
+        execution_date='{{ ds }}',
+        wait_for_completion=False,
+        reset_dag_run=True 
+    )
+
+    extract_tmdb_now_playing_movies_task >> trigger_create_now_playing_movies_silver
