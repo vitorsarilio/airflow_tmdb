@@ -1,10 +1,11 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.models import Variable
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.providers.google.cloud.hooks.gcs import GCSHook
 from datetime import datetime, timedelta, timezone
 import requests
 import pandas as pd
-from airflow.providers.google.cloud.hooks.gcs import GCSHook
 from io import StringIO
 import os
 
@@ -194,15 +195,25 @@ def extract_tmdb_watchlist_movies(**context):
         raise
 
 with DAG(
-    'tmdb_watchlist_movies',
+    'tmdb_watchlist_movies_bronze',
     default_args=default_args,
     schedule_interval='25 4 * * *',
     catchup=False,
     tags=['tmdb', 'bronze']
 ) as dag:
 
-    extract_task = PythonOperator(
-        task_id='extract_tmdb_watchlist_movies',
+    extract_watchlist_movies_bronze_task = PythonOperator(
+        task_id='extract_watchlist_movies_bronze',
         python_callable=extract_tmdb_watchlist_movies,
         provide_context=True
     )
+
+    trigger_create_watchlist_movies_silver = TriggerDagRunOperator(
+        task_id='trigger_tmdb_watchlist_movies_silver_processing',
+        trigger_dag_id="tmdb_watchlist_movies_silver",
+        execution_date='{{ ds }}',
+        wait_for_completion=False,
+        reset_dag_run=True 
+    )
+
+    extract_watchlist_movies_bronze_task >> trigger_create_watchlist_movies_silver
