@@ -1,5 +1,6 @@
 from airflow import DAG
 from airflow.providers.google.cloud.operators.bigquery import BigQueryInsertJobOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from datetime import datetime, timedelta
 
 default_args = {
@@ -75,7 +76,7 @@ with DAG(
                             SELECT
                                 tmd.id,
                                 SAFE_CAST(tmd.id_collection AS INT64) AS id_colecao,
-                                IF(tmd.imdb_id IS NOT NULL, CONCAT('https://www.imdb.com/pt/title/', tmd.imdb_id), NULL) AS imdb_url,
+                                IF(tmd.imdb_id IS NOT NULL AND tmd.imdb_id != '', CONCAT('https://www.imdb.com/pt/title/', tmd.imdb_id), NULL) AS imdb_url,
                                 tmd.original_title AS titulo_original,
                                 tmd.title AS titulo,
                                 tmd.name_collection AS nome_colecao,
@@ -161,4 +162,12 @@ with DAG(
         gcp_conn_id='google_cloud_default'
     )
 
-    create_details_movies_silver_table >> merge_details_movies_silver >> verificar_integridade_silver
+    trigger_tmdb_details_movies_gold = TriggerDagRunOperator(
+        task_id='trigger_tmdb_details_movies_gold',
+        trigger_dag_id='tmdb_details_movies_gold',
+        execution_date='{{ ds }}',
+        wait_for_completion=False,
+        reset_dag_run=True
+    )
+
+    create_details_movies_silver_table >> merge_details_movies_silver >> verificar_integridade_silver >> trigger_tmdb_details_movies_gold
