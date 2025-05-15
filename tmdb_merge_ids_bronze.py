@@ -68,7 +68,7 @@ default_args = {
 with DAG(
     dag_id='tmdb_merge_ids_bronze',
     default_args=default_args,
-    schedule_interval='0 8 * * *',
+    schedule_interval='0 9 * * *',
     catchup=False,
     tags=['tmdb', 'bigquery'],
 ) as dag:

@@ -272,7 +272,7 @@ def atualizar_filmes_modificados(**context):
 with DAG(
     'tmdb_details_movies_bronze',
     default_args=default_args,
-    schedule_interval='30 8 * * *',
+    schedule_interval='30 9 * * *',
     catchup=False,
     tags=['tmdb', 'bronze', 'movies']
 ) as dag:
