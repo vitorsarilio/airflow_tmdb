@@ -148,14 +148,14 @@ with DAG(
         task_id='inserir_fato_filme',
         configuration={
             "query": {
-                "query": """
+                "query": f"""
                 INSERT INTO `engestudo.cinema_gold.fato_filme` (id, votos, media_votos, popularidade, job_date)
                 SELECT
                     id,
                     votos,
                     media_votos,
                     popularidade,
-                    job_date
+                    CURRENT_TIMESTAMP() AS job_date
                 FROM `engestudo.cinema_silver.tmdb_movies_details`;
                 """,
                 "useLegacySql": False
