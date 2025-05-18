@@ -1,5 +1,6 @@
 from airflow import DAG
 from airflow.providers.google.cloud.operators.bigquery import BigQueryInsertJobOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.models import Variable
 from datetime import datetime, timedelta
 
@@ -51,3 +52,13 @@ with DAG(
         },
         gcp_conn_id='google_cloud_default'
     )
+
+    trigger_create_watchlist_movies_gold = TriggerDagRunOperator(
+        task_id='trigger_tmdb_watchlist_movies_gold_processing',
+        trigger_dag_id="tmdb_watchlist_movies_gold",
+        execution_date='{{ ds }}',
+        wait_for_completion=False,
+        reset_dag_run=True 
+    )
+
+    create_silver_table >> trigger_create_watchlist_movies_gold
