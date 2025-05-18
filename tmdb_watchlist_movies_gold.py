@@ -14,10 +14,11 @@ default_args = {
 project_id = Variable.get("PROJECT_ID")
 
 query_sql = f"""
-    CREATE OR REPLACE TABLE `{project_id}.cinema_gold.dim_filmes_assistir` 
-    PARTITION BY DATE(last_date) AS
+    CREATE OR REPLACE TABLE `{project_id}.cinema_gold.dim_filmes_assistir` AS
     SELECT 
-        *
+        id,
+        title AS titulo,
+        last_date
     FROM `{project_id}.cinema_silver.tmdb_watchlist_movies`;
 """
 
