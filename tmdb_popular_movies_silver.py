@@ -32,7 +32,7 @@ with DAG(
                         title AS titulo,
                         popularity AS popularidade,
                         job_date
-                    FROM `engestudo.cinema_silver.tmdb_popular_movies`
+                    FROM `engestudo.cinema_bronze.tmdb_popular_movies`
                     WHERE job_date IS NOT NULL
                 """,
                 "useLegacySql": False,
